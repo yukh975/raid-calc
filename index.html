@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="raid-calc.svg">
+    <title>RAID Calculator</title>
+    <meta name="description" content="RAID calculator: compute usable capacity, efficiency and fault tolerance for RAID 0, 1, 5, 6, 10, 50, 60">
+    <style>
+        /* ── Theme variables ── */
+        :root, [data-theme="dark"] {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --border: #2e3147;
+            --text: #e2e4ef;
+            --muted: #8890b5;
+            --accent: #58a6ff;
+            --success: #3fb950;
+            --radius: 8px;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+        [data-theme="light"] {
+            --bg: #f5f6f8;
+            --surface: #ffffff;
+            --border: #d0d5dd;
+            --text: #1a1d2e;
+            --muted: #6b7280;
+            --accent: #2563eb;
+            --success: #16a34a;
+        }
+
+        /* ── Reset & base ── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+            transition: background .2s, color .2s;
+        }
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 24px 20px 32px;
+        }
+
+        /* ── Page header ── */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .site-logo {
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+        }
+        .title-row h1 {
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .subtitle {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+        .lang-switcher {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .lang-sep {
+            color: var(--border);
+            font-size: 14px;
+            user-select: none;
+        }
+        .lang-btn, .theme-btn, .help-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 10px;
+            transition: color .15s, border-color .15s;
+            font-family: var(--font);
+            line-height: 1.4;
+        }
+        .lang-btn:hover, .theme-btn:hover, .help-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .lang-btn.active {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .help-btn {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: center;
+        }
+
+        /* ── RAID level selector ── */
+        .raid-levels { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+        .raid-level-btn {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            color: var(--muted); font-size: 14px; font-weight: 600; padding: 8px 16px;
+            cursor: pointer; transition: all .15s; white-space: nowrap; font-family: var(--font);
+        }
+        .raid-level-btn:hover { color: var(--text); border-color: var(--accent); }
+        .raid-level-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* ── Form card ── */
+        .raid-form-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 20px 24px; margin-bottom: 16px;
+        }
+        .raid-form-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px; margin-top: 4px;
+        }
+        .raid-field { display: flex; flex-direction: column; gap: 6px; }
+        .raid-label { font-size: 13px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+        .raid-input, .raid-select {
+            padding: 9px 12px; font-size: 15px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: var(--radius); color: var(--text); transition: border-color .15s;
+            font-family: var(--font); width: 100%;
+        }
+        .raid-input:focus, .raid-select:focus { outline: none; border-color: var(--accent); }
+        .raid-select { cursor: pointer; }
+        .raid-input[type="number"] { -moz-appearance: textfield; }
+        .raid-input[type="number"]::-webkit-outer-spin-button,
+        .raid-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* ── Reset button ── */
+        .raid-reset-btn {
+            margin-top: 8px; align-self: flex-end; background: none; border: 1px solid var(--border);
+            border-radius: var(--radius); color: var(--muted); cursor: pointer; font-size: 18px;
+            padding: 4px 12px; transition: color .15s, border-color .15s;
+        }
+        .raid-reset-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+        /* ── Custom capacity input ── */
+        .raid-custom-wrap { display: none; }
+        .raid-custom-wrap.visible { display: flex; flex-direction: column; gap: 6px; }
+
+        /* ── Results cards ── */
+        .raid-results { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .raid-metric {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px 18px; text-align: center;
+        }
+        .raid-metric-value { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+        .raid-metric-label { font-size: 12px; color: var(--muted); margin-top: 10px; text-transform: uppercase; letter-spacing: .3px; }
+
+        /* ── Capacity bar ── */
+        .raid-bar-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px 20px; margin-bottom: 16px;
+        }
+        .raid-bar-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+        .raid-bar { display: flex; height: 32px; border-radius: 6px; overflow: hidden; }
+        .raid-bar-data { background: var(--success); transition: width .3s; }
+        .raid-bar-parity { background: #e8954a; transition: width .3s; }
+        .raid-bar-spare { background: var(--muted); transition: width .3s; }
+        .raid-bar-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+        .raid-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+        /* ── Disk icons ── */
+        .raid-disks-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px 20px; margin-bottom: 16px;
+        }
+        .raid-disks-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+        .raid-disks-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+        .raid-disk-icon {
+            width: 36px; height: 44px; border-radius: 4px; display: flex; align-items: center;
+            justify-content: center; font-size: 10px; font-weight: 700; color: #fff;
+            position: relative; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .raid-disk-icon.disk-data { background: var(--accent); }
+        .raid-disk-icon.disk-parity { background: #e8954a; }
+        .raid-disk-icon.disk-spare { background: var(--muted); }
+        .raid-disk-icon svg { width: 20px; height: 20px; fill: rgba(255,255,255,0.7); }
+
+        /* ── RAID description ── */
+        .raid-desc-card {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px 20px; margin-bottom: 16px;
+        }
+        .raid-desc-title { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+        .raid-desc-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+        .raid-desc-text b { color: var(--text); font-weight: 600; }
+
+        /* ── Help modal ── */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        .modal-backdrop.hidden { display: none; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            width: 100%; max-height: 85vh; display: flex; flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
+        .modal-body {
+            padding: 20px; overflow-y: auto; flex: 1;
+        }
+        .result-close {
+            background: none; border: 1px solid var(--border); border-radius: var(--radius);
+            color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px 10px;
+            transition: color .15s, border-color .15s; line-height: 1;
+        }
+        .result-close:hover { color: var(--accent); border-color: var(--accent); }
+
+        .raid-help-section { margin-bottom: 16px; }
+        .raid-help-section h3 { font-size: 15px; color: var(--accent); margin-bottom: 6px; }
+        .raid-help-section p { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 6px; }
+        .raid-help-section b { color: var(--text); }
+        .raid-help-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+        .raid-help-table th { text-align: left; padding: 6px 10px; border-bottom: 2px solid var(--border); color: var(--text); font-weight: 600; }
+        .raid-help-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--muted); }
+        .raid-help-table tr:last-child td { border-bottom: none; }
+
+        /* ── Warning ── */
+        .raid-warning {
+            background: color-mix(in srgb, #e8954a 12%, transparent);
+            border: 1px solid color-mix(in srgb, #e8954a 35%, transparent);
+            border-radius: var(--radius); padding: 10px 14px; font-size: 13px; color: #e8954a;
+            margin-bottom: 16px; display: none;
+        }
+
+        /* ── Footer ── */
+        .copyright {
+            text-align: center; font-size: 12px; color: var(--muted);
+            margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
+        }
+
+        /* ── Mobile ── */
+        @media (max-width: 700px) {
+            .raid-results { grid-template-columns: repeat(2, 1fr); }
+            .raid-form-grid { grid-template-columns: 1fr; }
+            .raid-input, .raid-select { font-size: 16px; }
+            .raid-metric-value { font-size: 20px; }
+            .raid-disk-icon { width: 30px; height: 36px; }
+            .raid-disk-icon svg { width: 16px; height: 16px; }
+            .container { padding: 16px 12px 24px; }
+            .title-row h1 { font-size: 18px; }
+            .page-header { gap: 8px; }
+            .raid-help-table { font-size: 11px; }
+            .raid-help-table th, .raid-help-table td { padding: 4px 6px; }
+        }
+        @media (max-width: 400px) {
+            .raid-results { grid-template-columns: 1fr; }
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+    </style>
+    <script>
+        /* Theme init - apply before paint to prevent flash */
+        (function() {
+            var t = localStorage.getItem('netadm_theme');
+            if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
+</head>
+<body>
+<div class="container">
+
+    <div class="page-header">
+        <div class="title-row">
+            <img src="raid-calc.svg" alt="RAID Calculator" class="site-logo">
+            <div>
+                <h1 id="page-title">RAID Calculator</h1>
+                <p class="subtitle" id="subtitle"></p>
+            </div>
+        </div>
+        <div class="lang-switcher">
+            <button type="button" id="help-btn" class="help-btn" title="Help">?</button>
+            <span class="lang-sep">|</span>
+            <button type="button" id="theme-btn" class="theme-btn"></button>
+            <span class="lang-sep">|</span>
+            <button type="button" id="lang-en" class="lang-btn">EN</button>
+            <span class="lang-sep">|</span>
+            <button type="button" id="lang-ru" class="lang-btn">RU</button>
+        </div>
+    </div>
+
+    <!-- RAID Level Selector -->
+    <div class="raid-levels" id="raid-levels">
+        <button type="button" class="raid-level-btn active" data-level="0">RAID 0</button>
+        <button type="button" class="raid-level-btn" data-level="1">RAID 1</button>
+        <button type="button" class="raid-level-btn" data-level="5">RAID 5</button>
+        <button type="button" class="raid-level-btn" data-level="6">RAID 6</button>
+        <button type="button" class="raid-level-btn" data-level="10">RAID 10</button>
+        <button type="button" class="raid-level-btn" data-level="50">RAID 50</button>
+        <button type="button" class="raid-level-btn" data-level="60">RAID 60</button>
+    </div>
+
+    <!-- Form -->
+    <div class="raid-form-card">
+        <div class="raid-form-grid">
+            <div class="raid-field">
+                <label class="raid-label" id="lbl-disks" for="raid-disks"></label>
+                <input type="number" id="raid-disks" class="raid-input" value="2" min="2">
+            </div>
+            <div class="raid-field">
+                <label class="raid-label" id="lbl-size" for="raid-size"></label>
+                <select id="raid-size" class="raid-select">
+                    <option value="300">300 GB</option>
+                    <option value="600">600 GB</option>
+                    <option value="900">900 GB</option>
+                    <option value="1000" selected>1 TB</option>
+                    <option value="2000">2 TB</option>
+                    <option value="4000">4 TB</option>
+                    <option value="6000">6 TB</option>
+                    <option value="8000">8 TB</option>
+                    <option value="10000">10 TB</option>
+                    <option value="12000">12 TB</option>
+                    <option value="14000">14 TB</option>
+                    <option value="16000">16 TB</option>
+                    <option value="18000">18 TB</option>
+                    <option value="20000">20 TB</option>
+                    <option value="24000">24 TB</option>
+                    <option value="32000">32 TB</option>
+                    <option value="64000">64 TB</option>
+                    <option value="100000">100 TB</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="raid-field raid-custom-wrap" id="custom-wrap">
+                <label class="raid-label" id="lbl-custom" for="raid-custom"></label>
+                <input type="number" id="raid-custom" class="raid-input" value="500" min="1" placeholder="GB">
+            </div>
+            <div class="raid-field">
+                <label class="raid-label" id="lbl-spare" for="raid-spare"></label>
+                <input type="number" id="raid-spare" class="raid-input" value="0" min="0">
+            </div>
+            <div class="raid-field" id="group-field" style="display:none">
+                <label class="raid-label" id="lbl-group" for="raid-group"></label>
+                <input type="number" id="raid-group" class="raid-input" value="3" min="3">
+            </div>
+        </div>
+        <button type="button" class="raid-reset-btn" id="raid-reset" title="Reset">&#8634;</button>
+    </div>
+
+    <!-- Warning -->
+    <div class="raid-warning" id="raid-warning"></div>
+
+    <!-- RAID description -->
+    <div class="raid-desc-card" id="raid-desc"></div>
+
+    <!-- Results -->
+    <div class="raid-results" id="raid-results">
+        <div class="raid-metric"><div class="raid-metric-value" id="res-usable">&mdash;</div><div class="raid-metric-label" id="res-usable-lbl"></div></div>
+        <div class="raid-metric"><div class="raid-metric-value" id="res-total">&mdash;</div><div class="raid-metric-label" id="res-total-lbl"></div></div>
+        <div class="raid-metric"><div class="raid-metric-value" id="res-efficiency">&mdash;</div><div class="raid-metric-label" id="res-efficiency-lbl"></div></div>
+        <div class="raid-metric"><div class="raid-metric-value" id="res-fault">&mdash;</div><div class="raid-metric-label" id="res-fault-lbl"></div></div>
+    </div>
+
+    <!-- Capacity bar -->
+    <div class="raid-bar-card">
+        <div class="raid-bar-title" id="bar-title"></div>
+        <div class="raid-bar" id="raid-bar">
+            <div class="raid-bar-data" id="bar-data"></div>
+            <div class="raid-bar-parity" id="bar-parity"></div>
+            <div class="raid-bar-spare" id="bar-spare"></div>
+        </div>
+        <div class="raid-bar-legend" id="bar-legend"></div>
+    </div>
+
+    <!-- Disk icons -->
+    <div class="raid-disks-card">
+        <div class="raid-disks-title" id="disks-title"></div>
+        <div class="raid-disks-grid" id="disks-grid"></div>
+    </div>
+
+    <!-- Help modal -->
+    <div id="help-backdrop" class="modal-backdrop hidden">
+        <div class="modal" style="max-width:680px">
+            <div class="modal-header">
+                <span class="modal-title" id="help-title"></span>
+                <button type="button" id="help-close" class="result-close">&#x2715;</button>
+            </div>
+            <div class="modal-body" id="help-body"></div>
+        </div>
+    </div>
+
+    <footer class="copyright">
+        <div>&copy; 2026 RAID Calculator</div>
+    </footer>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var THEME_KEY = 'netadm_theme';
+    var LANG_KEY  = 'netadm_lang';
+
+    /* ── RAID definitions ── */
+    var RAIDS = {
+        '0':  { min: 2, even: false, parity: 0, mirror: false, groups: false },
+        '1':  { min: 2, even: true,  parity: 0, mirror: true,  groups: false },
+        '5':  { min: 3, even: false, parity: 1, mirror: false, groups: false },
+        '6':  { min: 4, even: false, parity: 2, mirror: false, groups: false },
+        '10': { min: 4, even: true,  parity: 0, mirror: true,  groups: false },
+        '50': { min: 6, even: false, parity: 1, mirror: false, groups: true, groupMin: 3 },
+        '60': { min: 8, even: false, parity: 2, mirror: false, groups: true, groupMin: 4 },
+    };
+
+    /* ── i18n ── */
+    var i18n = {
+        en: {
+            title: 'RAID Calculator',
+            subtitle: 'Usable space, fault tolerance, RAID levels',
+            lbl_disks: 'Number of disks',
+            lbl_size: 'Disk size',
+            lbl_spare: 'Hot Spare',
+            lbl_group: 'Disks per group',
+            lbl_custom: 'Custom size (GB)',
+            res_usable: 'Usable capacity',
+            res_total: 'Total capacity',
+            res_efficiency: 'Efficiency',
+            res_fault: 'Fault tolerance',
+            bar_title: 'Capacity distribution',
+            bar_data: 'Data',
+            bar_parity: 'Parity / Mirror',
+            bar_spare: 'Hot Spare',
+            disks_title: 'Disk layout',
+            warn_even: 'RAID {level} requires an even number of disks.',
+            warn_min: 'Minimum {min} disks required for RAID {level}.',
+            warn_spare: 'Not enough disks: all used as hot spare.',
+            warn_group: 'Disks per group must be at least {min} and divide evenly into {n} active disks.',
+            fault_fn: function(total, perUnit, unitName) {
+                if (!perUnit) return '' + total;
+                return total + ' (' + perUnit + ' per ' + unitName + ')';
+            },
+            desc: {
+                '0': { name: 'RAID 0 \u2014 Striping', text: 'Data is split across all disks with <b>no redundancy</b>.<br>Maximum performance and capacity.<br><b>Any single disk failure destroys all data</b>.<br>Best for temporary/scratch data where speed matters.' },
+                '1': { name: 'RAID 1 \u2014 Mirroring', text: 'Disks are paired into mirrors.<br>Usable capacity = <b>50%</b> (N/2 disks).<br><b>Tolerates failure of 1 disk per mirror pair</b>.<br>Requires even number of disks.<br>Example: 10 disks \u2192 <b>5 mirrored pairs = 5 disks usable</b>.' },
+                '5': { name: 'RAID 5 \u2014 Striping with Parity', text: 'Data and parity distributed across all disks.<br><b>Tolerates failure of 1 disk</b>.<br>Capacity overhead: 1 disk.<br>Example: 5 disks \u2192 <b>4 disks usable</b>.<br>Good balance of performance, capacity and safety.' },
+                '6': { name: 'RAID 6 \u2014 Striping with Double Parity', text: 'Like RAID 5 but with two parity blocks.<br><b>Tolerates simultaneous failure of 2 disks</b>.<br>Capacity overhead: 2 disks.<br>Example: 6 disks \u2192 <b>4 disks usable</b>.<br>Recommended for large arrays.' },
+                '10': { name: 'RAID 10 \u2014 Mirrored Stripes', text: 'Disks are paired into mirrors, then striped.<br><b>Tolerates failure of 1 disk per mirror pair</b>.<br>Capacity: 50% of total.<br>Requires even number of disks.<br><b>Best performance + redundancy combo</b> for databases.' },
+                '50': { name: 'RAID 50 \u2014 Striped RAID 5', text: 'Multiple RAID 5 groups striped together.<br><b>Tolerates failure of 1 disk per group</b>.<br>Capacity overhead: 1 disk per group.<br>Example: 9 disks in 3 groups of 3 \u2192 <b>6 disks usable</b>.' },
+                '60': { name: 'RAID 60 \u2014 Striped RAID 6', text: 'Multiple RAID 6 groups striped together.<br><b>Tolerates failure of 2 disks per group</b>.<br>Capacity overhead: 2 disks per group.<br>Example: 8 disks in 2 groups of 4 \u2192 <b>4 disks usable</b>.' },
+            },
+            help_title: 'Help \u2014 RAID Calculator',
+            help_body:
+                '<div class="raid-help-section"><h3>About</h3>' +
+                '<p>This calculator computes usable capacity, efficiency and fault tolerance for common RAID levels. All calculations assume disks of <b>equal size</b>.</p></div>' +
+                '<div class="raid-help-section"><h3>RAID Levels</h3>' +
+                '<table class="raid-help-table"><thead><tr><th>Level</th><th>Min</th><th>Multiplicity</th><th>Overhead</th><th>Fault tolerance</th><th>Description</th></tr></thead><tbody>' +
+                '<tr><td><b>RAID 0</b></td><td>2</td><td>Any</td><td>None</td><td>0</td><td>Striping, no redundancy</td></tr>' +
+                '<tr><td><b>RAID 1</b></td><td>2</td><td>Even (\u00d72)</td><td>50%</td><td>1 per pair</td><td>Mirror pairs</td></tr>' +
+                '<tr><td><b>RAID 5</b></td><td>3</td><td>Any</td><td>1 disk</td><td>1</td><td>Distributed parity</td></tr>' +
+                '<tr><td><b>RAID 6</b></td><td>4</td><td>Any</td><td>2 disks</td><td>2</td><td>Double parity</td></tr>' +
+                '<tr><td><b>RAID 10</b></td><td>4</td><td>Even (\u00d72)</td><td>50%</td><td>1 per pair</td><td>Mirrored stripes</td></tr>' +
+                '<tr><td><b>RAID 50</b></td><td>6</td><td>\u00d73 (groups of 3+)</td><td>1 disk/group</td><td>1 per group</td><td>Striped RAID 5</td></tr>' +
+                '<tr><td><b>RAID 60</b></td><td>8</td><td>\u00d74 (groups of 4+)</td><td>2 disks/group</td><td>2 per group</td><td>Striped RAID 6</td></tr>' +
+                '</tbody></table></div>' +
+                '<div class="raid-help-section"><h3>Capacity Examples</h3>' +
+                '<table class="raid-help-table"><thead><tr><th>RAID</th><th>Disks</th><th>Overhead</th><th>Usable</th></tr></thead><tbody>' +
+                '<tr><td>RAID 0</td><td>4 \u00d7 1 TB</td><td>0</td><td>4 TB</td></tr>' +
+                '<tr><td>RAID 1</td><td>10 \u00d7 1 TB</td><td>50% (5 disks)</td><td>5 TB</td></tr>' +
+                '<tr><td>RAID 5</td><td>5 \u00d7 1 TB</td><td>5\u22121 = 1 disk</td><td>4 TB</td></tr>' +
+                '<tr><td>RAID 6</td><td>6 \u00d7 1 TB</td><td>6\u22122 = 2 disks</td><td>4 TB</td></tr>' +
+                '<tr><td>RAID 10</td><td>6 \u00d7 1 TB</td><td>50%</td><td>3 TB</td></tr>' +
+                '<tr><td>RAID 50</td><td>9 \u00d7 1 TB (3 groups)</td><td>3 \u00d7 1 = 3 disks</td><td>6 TB</td></tr>' +
+                '<tr><td>RAID 60</td><td>8 \u00d7 1 TB (2 groups)</td><td>2 \u00d7 2 = 4 disks</td><td>4 TB</td></tr>' +
+                '</tbody></table></div>' +
+                '<div class="raid-help-section"><h3>Hot Spare</h3>' +
+                '<p>Hot spare disks are reserved as automatic replacements. They are <b>not included</b> in the RAID array and reduce the number of active disks.</p></div>',
+        },
+        ru: {
+            title: 'RAID Calculator',
+            subtitle: '\u0401\u043c\u043a\u043e\u0441\u0442\u044c, \u043e\u0442\u043a\u0430\u0437\u043e\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c, \u0443\u0440\u043e\u0432\u043d\u0438 RAID',
+            lbl_disks: '\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0434\u0438\u0441\u043a\u043e\u0432',
+            lbl_size: '\u0420\u0430\u0437\u043c\u0435\u0440 \u0434\u0438\u0441\u043a\u0430',
+            lbl_spare: 'Hot Spare',
+            lbl_group: '\u0414\u0438\u0441\u043a\u043e\u0432 \u0432 \u0433\u0440\u0443\u043f\u043f\u0435',
+            lbl_custom: '\u0421\u0432\u043e\u0439 \u0440\u0430\u0437\u043c\u0435\u0440 (GB)',
+            res_usable: '\u041f\u043e\u043b\u0435\u0437\u043d\u0430\u044f \u0451\u043c\u043a\u043e\u0441\u0442\u044c',
+            res_total: '\u041e\u0431\u0449\u0430\u044f \u0451\u043c\u043a\u043e\u0441\u0442\u044c',
+            res_efficiency: '\u042d\u0444\u0444\u0435\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c',
+            res_fault: '\u041e\u0442\u043a\u0430\u0437\u043e\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c',
+            bar_title: '\u0420\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0438\u0435 \u0451\u043c\u043a\u043e\u0441\u0442\u0438',
+            bar_data: '\u0414\u0430\u043d\u043d\u044b\u0435',
+            bar_parity: '\u0427\u0451\u0442\u043d\u043e\u0441\u0442\u044c / \u0417\u0435\u0440\u043a\u0430\u043b\u043e',
+            bar_spare: 'Hot Spare',
+            disks_title: '\u0421\u0445\u0435\u043c\u0430 \u0434\u0438\u0441\u043a\u043e\u0432',
+            warn_even: 'RAID {level} \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u0447\u0451\u0442\u043d\u043e\u0435 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0434\u0438\u0441\u043a\u043e\u0432.',
+            warn_min: '\u041c\u0438\u043d\u0438\u043c\u0443\u043c {min} \u0434\u0438\u0441\u043a\u043e\u0432 \u0434\u043b\u044f RAID {level}.',
+            warn_spare: '\u041d\u0435\u0434\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u0434\u0438\u0441\u043a\u043e\u0432: \u0432\u0441\u0435 \u0443\u0448\u043b\u0438 \u043d\u0430 hot spare.',
+            warn_group: '\u0414\u0438\u0441\u043a\u043e\u0432 \u0432 \u0433\u0440\u0443\u043f\u043f\u0435 \u043c\u0438\u043d\u0438\u043c\u0443\u043c {min}, \u0438 \u0434\u043e\u043b\u0436\u043d\u043e \u0434\u0435\u043b\u0438\u0442\u044c {n} \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u0434\u0438\u0441\u043a\u043e\u0432 \u043d\u0430\u0446\u0435\u043b\u043e.',
+            fault_fn: function(total, perUnit, unitName) {
+                if (!perUnit) return total === 0 ? '\u041d\u0435\u0442' : '' + total;
+                return total + ' (' + perUnit + ' \u043d\u0430 ' + unitName + ')';
+            },
+            desc: {
+                '0': { name: 'RAID 0 \u2014 \u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 (Striping)', text: '\u0414\u0430\u043d\u043d\u044b\u0435 \u0440\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u044f\u044e\u0442\u0441\u044f \u043f\u043e \u0432\u0441\u0435\u043c \u0434\u0438\u0441\u043a\u0430\u043c <b>\u0431\u0435\u0437 \u0438\u0437\u0431\u044b\u0442\u043e\u0447\u043d\u043e\u0441\u0442\u0438</b>.<br>\u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u0430\u044f \u043f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u0438 \u0451\u043c\u043a\u043e\u0441\u0442\u044c.<br><b>\u041b\u044e\u0431\u043e\u0439 \u0434\u0438\u0441\u043a \u0432\u044b\u0445\u043e\u0434\u0438\u0442 \u0438\u0437 \u0441\u0442\u0440\u043e\u044f \u2014 \u0432\u0441\u0435 \u0434\u0430\u043d\u043d\u044b\u0435 \u043f\u043e\u0442\u0435\u0440\u044f\u043d\u044b</b>.<br>\u041f\u043e\u0434\u0445\u043e\u0434\u0438\u0442 \u0434\u043b\u044f \u0432\u0440\u0435\u043c\u0435\u043d\u043d\u044b\u0445 \u0434\u0430\u043d\u043d\u044b\u0445, \u0433\u0434\u0435 \u0432\u0430\u0436\u043d\u0430 \u0441\u043a\u043e\u0440\u043e\u0441\u0442\u044c.' },
+                '1': { name: 'RAID 1 \u2014 \u0417\u0435\u0440\u043a\u0430\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 (Mirroring)', text: '\u0414\u0438\u0441\u043a\u0438 \u043e\u0431\u044a\u0435\u0434\u0438\u043d\u044f\u044e\u0442\u0441\u044f \u0432 \u0437\u0435\u0440\u043a\u0430\u043b\u044c\u043d\u044b\u0435 \u043f\u0430\u0440\u044b.<br>\u041f\u043e\u043b\u0435\u0437\u043d\u0430\u044f \u0451\u043c\u043a\u043e\u0441\u0442\u044c = <b>50%</b> (N/2 \u0434\u0438\u0441\u043a\u043e\u0432).<br><b>\u0412\u044b\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043e\u0442\u043a\u0430\u0437 1 \u0434\u0438\u0441\u043a\u0430 \u043d\u0430 \u043f\u0430\u0440\u0443</b>.<br>\u0422\u0440\u0435\u0431\u0443\u0435\u0442 \u0447\u0451\u0442\u043d\u043e\u0435 \u0447\u0438\u0441\u043b\u043e \u0434\u0438\u0441\u043a\u043e\u0432.<br>\u041f\u0440\u0438\u043c\u0435\u0440: 10 \u0434\u0438\u0441\u043a\u043e\u0432 \u2192 <b>5 \u0437\u0435\u0440\u043a\u0430\u043b\u044c\u043d\u044b\u0445 \u043f\u0430\u0440 = 5 \u0434\u0438\u0441\u043a\u043e\u0432 \u043f\u043e\u043b\u0435\u0437\u043d\u043e\u0433\u043e \u043e\u0431\u044a\u0451\u043c\u0430</b>.' },
+                '5': { name: 'RAID 5 \u2014 \u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 \u0441 \u0447\u0451\u0442\u043d\u043e\u0441\u0442\u044c\u044e', text: '\u0414\u0430\u043d\u043d\u044b\u0435 \u0438 \u0431\u043b\u043e\u043a\u0438 \u0447\u0451\u0442\u043d\u043e\u0441\u0442\u0438 \u0440\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u044b \u043f\u043e \u0434\u0438\u0441\u043a\u0430\u043c.<br><b>\u0412\u044b\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043e\u0442\u043a\u0430\u0437 1 \u0434\u0438\u0441\u043a\u0430</b>.<br>\u041d\u0430\u043a\u043b\u0430\u0434\u043d\u044b\u0435 \u0440\u0430\u0441\u0445\u043e\u0434\u044b: 1 \u0434\u0438\u0441\u043a.<br>\u041f\u0440\u0438\u043c\u0435\u0440: 5 \u0434\u0438\u0441\u043a\u043e\u0432 \u2192 <b>5\u22121 = 4 \u0434\u0438\u0441\u043a\u0430 \u043f\u043e\u043b\u0435\u0437\u043d\u043e\u0433\u043e \u043e\u0431\u044a\u0451\u043c\u0430</b>.<br>\u0425\u043e\u0440\u043e\u0448\u0438\u0439 \u0431\u0430\u043b\u0430\u043d\u0441 \u043f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u0438, \u0451\u043c\u043a\u043e\u0441\u0442\u0438 \u0438 \u043d\u0430\u0434\u0451\u0436\u043d\u043e\u0441\u0442\u0438.' },
+                '6': { name: 'RAID 6 \u2014 \u0414\u0432\u043e\u0439\u043d\u0430\u044f \u0447\u0451\u0442\u043d\u043e\u0441\u0442\u044c', text: '\u041a\u0430\u043a RAID 5, \u043d\u043e \u0441 \u0434\u0432\u0443\u043c\u044f \u0431\u043b\u043e\u043a\u0430\u043c\u0438 \u0447\u0451\u0442\u043d\u043e\u0441\u0442\u0438.<br><b>\u0412\u044b\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043e\u0434\u043d\u043e\u0432\u0440\u0435\u043c\u0435\u043d\u043d\u044b\u0439 \u043e\u0442\u043a\u0430\u0437 2 \u0434\u0438\u0441\u043a\u043e\u0432</b>.<br>\u041d\u0430\u043a\u043b\u0430\u0434\u043d\u044b\u0435 \u0440\u0430\u0441\u0445\u043e\u0434\u044b: 2 \u0434\u0438\u0441\u043a\u0430.<br>\u041f\u0440\u0438\u043c\u0435\u0440: 6 \u0434\u0438\u0441\u043a\u043e\u0432 \u2192 <b>6\u22122 = 4 \u0434\u0438\u0441\u043a\u0430 \u043f\u043e\u043b\u0435\u0437\u043d\u043e\u0433\u043e \u043e\u0431\u044a\u0451\u043c\u0430</b>.<br>\u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0435\u0442\u0441\u044f \u0434\u043b\u044f \u0431\u043e\u043b\u044c\u0448\u0438\u0445 \u043c\u0430\u0441\u0441\u0438\u0432\u043e\u0432.' },
+                '10': { name: 'RAID 10 \u2014 \u0417\u0435\u0440\u043a\u0430\u043b\u044c\u043d\u044b\u0435 \u043f\u043e\u043b\u043e\u0441\u044b', text: '\u0414\u0438\u0441\u043a\u0438 \u043e\u0431\u044a\u0435\u0434\u0438\u043d\u044f\u044e\u0442\u0441\u044f \u0432 \u0437\u0435\u0440\u043a\u0430\u043b\u044c\u043d\u044b\u0435 \u043f\u0430\u0440\u044b, \u0437\u0430\u0442\u0435\u043c \u0447\u0435\u0440\u0435\u0434\u0443\u044e\u0442\u0441\u044f.<br><b>\u0412\u044b\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043e\u0442\u043a\u0430\u0437 1 \u0434\u0438\u0441\u043a\u0430 \u043d\u0430 \u043f\u0430\u0440\u0443</b>.<br>\u0401\u043c\u043a\u043e\u0441\u0442\u044c: 50% \u043e\u0442 \u043e\u0431\u0449\u0435\u0439.<br>\u0422\u0440\u0435\u0431\u0443\u0435\u0442 \u0447\u0451\u0442\u043d\u043e\u0435 \u0447\u0438\u0441\u043b\u043e \u0434\u0438\u0441\u043a\u043e\u0432.<br><b>\u041b\u0443\u0447\u0448\u0438\u0439 \u0432\u0430\u0440\u0438\u0430\u043d\u0442 \u0434\u043b\u044f \u0431\u0430\u0437 \u0434\u0430\u043d\u043d\u044b\u0445</b>.' },
+                '50': { name: 'RAID 50 \u2014 \u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 RAID 5', text: '\u041d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0433\u0440\u0443\u043f\u043f RAID 5, \u043e\u0431\u044a\u0435\u0434\u0438\u043d\u0451\u043d\u043d\u044b\u0445 \u0432 stripe.<br><b>\u0412\u044b\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043e\u0442\u043a\u0430\u0437 1 \u0434\u0438\u0441\u043a\u0430 \u043d\u0430 \u0433\u0440\u0443\u043f\u043f\u0443</b>.<br>\u041d\u0430\u043a\u043b\u0430\u0434\u043d\u044b\u0435: 1 \u0434\u0438\u0441\u043a \u043d\u0430 \u0433\u0440\u0443\u043f\u043f\u0443.<br>\u041f\u0440\u0438\u043c\u0435\u0440: 9 \u0434\u0438\u0441\u043a\u043e\u0432 \u0432 3 \u0433\u0440\u0443\u043f\u043f\u0430\u0445 \u043f\u043e 3 \u2192 <b>9\u22123 = 6 \u0434\u0438\u0441\u043a\u043e\u0432 \u043f\u043e\u043b\u0435\u0437\u043d\u043e\u0433\u043e \u043e\u0431\u044a\u0451\u043c\u0430</b>.' },
+                '60': { name: 'RAID 60 \u2014 \u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 RAID 6', text: '\u041d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0433\u0440\u0443\u043f\u043f RAID 6, \u043e\u0431\u044a\u0435\u0434\u0438\u043d\u0451\u043d\u043d\u044b\u0445 \u0432 stripe.<br><b>\u0412\u044b\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u043e\u0442\u043a\u0430\u0437 2 \u0434\u0438\u0441\u043a\u043e\u0432 \u043d\u0430 \u0433\u0440\u0443\u043f\u043f\u0443</b>.<br>\u041d\u0430\u043a\u043b\u0430\u0434\u043d\u044b\u0435: 2 \u0434\u0438\u0441\u043a\u0430 \u043d\u0430 \u0433\u0440\u0443\u043f\u043f\u0443.<br>\u041f\u0440\u0438\u043c\u0435\u0440: 8 \u0434\u0438\u0441\u043a\u043e\u0432 \u0432 2 \u0433\u0440\u0443\u043f\u043f\u0430\u0445 \u043f\u043e 4 \u2192 <b>8\u22124 = 4 \u0434\u0438\u0441\u043a\u0430 \u043f\u043e\u043b\u0435\u0437\u043d\u043e\u0433\u043e \u043e\u0431\u044a\u0451\u043c\u0430</b>.' },
+            },
+            help_title: '\u0421\u043f\u0440\u0430\u0432\u043a\u0430 \u2014 RAID Calculator',
+            help_body:
+                '<div class="raid-help-section"><h3>\u041e \u043a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440\u0435</h3>' +
+                '<p>\u041a\u0430\u043b\u044c\u043a\u0443\u043b\u044f\u0442\u043e\u0440 \u0432\u044b\u0447\u0438\u0441\u043b\u044f\u0435\u0442 \u043f\u043e\u043b\u0435\u0437\u043d\u0443\u044e \u0451\u043c\u043a\u043e\u0441\u0442\u044c, \u044d\u0444\u0444\u0435\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c \u0438 \u043e\u0442\u043a\u0430\u0437\u043e\u0443\u0441\u0442\u043e\u0439\u0447\u0438\u0432\u043e\u0441\u0442\u044c \u0434\u043b\u044f \u0440\u0430\u0437\u043d\u044b\u0445 \u0443\u0440\u043e\u0432\u043d\u0435\u0439 RAID. \u0412\u0441\u0435 \u0440\u0430\u0441\u0447\u0451\u0442\u044b \u043f\u0440\u0435\u0434\u043f\u043e\u043b\u0430\u0433\u0430\u044e\u0442 \u0434\u0438\u0441\u043a\u0438 <b>\u043e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u043e\u0433\u043e \u0440\u0430\u0437\u043c\u0435\u0440\u0430</b>.</p></div>' +
+                '<div class="raid-help-section"><h3>\u0423\u0440\u043e\u0432\u043d\u0438 RAID</h3>' +
+                '<table class="raid-help-table"><thead><tr><th>\u0423\u0440\u043e\u0432\u0435\u043d\u044c</th><th>Min</th><th>\u041a\u0440\u0430\u0442\u043d\u043e\u0441\u0442\u044c</th><th>\u041d\u0430\u043a\u043b\u0430\u0434\u043d\u044b\u0435</th><th>\u041e\u0442\u043a\u0430\u0437\u043e\u0443\u0441\u0442.</th><th>\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435</th></tr></thead><tbody>' +
+                '<tr><td><b>RAID 0</b></td><td>2</td><td>\u041b\u044e\u0431\u043e\u0435</td><td>\u041d\u0435\u0442</td><td>0</td><td>\u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435, \u0431\u0435\u0437 \u0438\u0437\u0431\u044b\u0442\u043e\u0447\u043d\u043e\u0441\u0442\u0438</td></tr>' +
+                '<tr><td><b>RAID 1</b></td><td>2</td><td>\u0427\u0451\u0442\u043d\u043e\u0435 (\u00d72)</td><td>50%</td><td>1 \u043d\u0430 \u043f\u0430\u0440\u0443</td><td>\u0417\u0435\u0440\u043a\u0430\u043b\u044c\u043d\u044b\u0435 \u043f\u0430\u0440\u044b</td></tr>' +
+                '<tr><td><b>RAID 5</b></td><td>3</td><td>\u041b\u044e\u0431\u043e\u0435</td><td>1 \u0434\u0438\u0441\u043a</td><td>1</td><td>\u0420\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0451\u043d\u043d\u0430\u044f \u0447\u0451\u0442\u043d\u043e\u0441\u0442\u044c</td></tr>' +
+                '<tr><td><b>RAID 6</b></td><td>4</td><td>\u041b\u044e\u0431\u043e\u0435</td><td>2 \u0434\u0438\u0441\u043a\u0430</td><td>2</td><td>\u0414\u0432\u043e\u0439\u043d\u0430\u044f \u0447\u0451\u0442\u043d\u043e\u0441\u0442\u044c</td></tr>' +
+                '<tr><td><b>RAID 10</b></td><td>4</td><td>\u0427\u0451\u0442\u043d\u043e\u0435 (\u00d72)</td><td>50%</td><td>1 \u043d\u0430 \u043f\u0430\u0440\u0443</td><td>\u0417\u0435\u0440\u043a\u0430\u043b\u044c\u043d\u044b\u0435 \u043f\u043e\u043b\u043e\u0441\u044b</td></tr>' +
+                '<tr><td><b>RAID 50</b></td><td>6</td><td>\u00d73 (\u0433\u0440\u0443\u043f\u043f\u044b \u043e\u0442 3+)</td><td>1 \u0434\u0438\u0441\u043a/\u0433\u0440.</td><td>1 \u043d\u0430 \u0433\u0440.</td><td>\u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 RAID 5</td></tr>' +
+                '<tr><td><b>RAID 60</b></td><td>8</td><td>\u00d74 (\u0433\u0440\u0443\u043f\u043f\u044b \u043e\u0442 4+)</td><td>2 \u0434\u0438\u0441\u043a\u0430/\u0433\u0440.</td><td>2 \u043d\u0430 \u0433\u0440.</td><td>\u0427\u0435\u0440\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 RAID 6</td></tr>' +
+                '</tbody></table></div>' +
+                '<div class="raid-help-section"><h3>\u041f\u0440\u0438\u043c\u0435\u0440\u044b \u0440\u0430\u0441\u0447\u0451\u0442\u0430 \u0451\u043c\u043a\u043e\u0441\u0442\u0438</h3>' +
+                '<table class="raid-help-table"><thead><tr><th>RAID</th><th>\u0414\u0438\u0441\u043a\u0438</th><th>\u041d\u0430\u043a\u043b\u0430\u0434\u043d\u044b\u0435</th><th>\u041f\u043e\u043b\u0435\u0437\u043d\u043e</th></tr></thead><tbody>' +
+                '<tr><td>RAID 0</td><td>4 \u00d7 1 TB</td><td>0</td><td>4 TB</td></tr>' +
+                '<tr><td>RAID 1</td><td>10 \u00d7 1 TB</td><td>50% (5 \u0434.)</td><td>5 TB</td></tr>' +
+                '<tr><td>RAID 5</td><td>5 \u00d7 1 TB</td><td>5\u22121 = 1 \u0434\u0438\u0441\u043a</td><td>4 TB</td></tr>' +
+                '<tr><td>RAID 6</td><td>6 \u00d7 1 TB</td><td>6\u22122 = 2 \u0434\u0438\u0441\u043a\u0430</td><td>4 TB</td></tr>' +
+                '<tr><td>RAID 10</td><td>6 \u00d7 1 TB</td><td>50%</td><td>3 TB</td></tr>' +
+                '<tr><td>RAID 50</td><td>9 \u00d7 1 TB (3 \u0433\u0440.)</td><td>3 \u00d7 1 = 3 \u0434.</td><td>6 TB</td></tr>' +
+                '<tr><td>RAID 60</td><td>8 \u00d7 1 TB (2 \u0433\u0440.)</td><td>2 \u00d7 2 = 4 \u0434.</td><td>4 TB</td></tr>' +
+                '</tbody></table></div>' +
+                '<div class="raid-help-section"><h3>Hot Spare</h3>' +
+                '<p>\u0414\u0438\u0441\u043a\u0438 hot spare \u2014 \u0440\u0435\u0437\u0435\u0440\u0432\u043d\u044b\u0435 \u0434\u043b\u044f \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u043e\u0439 \u0437\u0430\u043c\u0435\u043d\u044b. \u041e\u043d\u0438 <b>\u043d\u0435 \u0432\u0445\u043e\u0434\u044f\u0442</b> \u0432 \u043c\u0430\u0441\u0441\u0438\u0432 \u0438 \u0443\u043c\u0435\u043d\u044c\u0448\u0430\u044e\u0442 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u0434\u0438\u0441\u043a\u043e\u0432.</p></div>',
+        },
+    };
+
+    var lang = localStorage.getItem(LANG_KEY) || 'en';
+    if (!i18n[lang]) lang = 'en';
+    function t(k) { return i18n[lang][k] || i18n.en[k] || k; }
+
+    var currentLevel = '0';
+
+    /* ── DOM refs ── */
+    var $disks   = document.getElementById('raid-disks');
+    var $size    = document.getElementById('raid-size');
+    var $custom  = document.getElementById('raid-custom');
+    var $customW = document.getElementById('custom-wrap');
+    var $spare   = document.getElementById('raid-spare');
+    var $group   = document.getElementById('raid-group');
+    var $groupF  = document.getElementById('group-field');
+    var $warning = document.getElementById('raid-warning');
+    var $desc    = document.getElementById('raid-desc');
+
+    var helpBackdrop = document.getElementById('help-backdrop');
+
+    /* ── Theme ── */
+    var themeBtn = document.getElementById('theme-btn');
+    function getTheme() { return document.documentElement.getAttribute('data-theme') || 'dark'; }
+    function applyTheme(th) {
+        document.documentElement.setAttribute('data-theme', th);
+        localStorage.setItem(THEME_KEY, th);
+        themeBtn.textContent = th === 'dark' ? '\u2600' : '\u263e';
+    }
+    applyTheme(getTheme());
+    themeBtn.addEventListener('click', function () { applyTheme(getTheme() === 'dark' ? 'light' : 'dark'); });
+
+    /* ── Help modal ── */
+    document.getElementById('help-btn').addEventListener('click', function () { helpBackdrop.classList.remove('hidden'); });
+    document.getElementById('help-close').addEventListener('click', function () { helpBackdrop.classList.add('hidden'); });
+    helpBackdrop.addEventListener('click', function (e) { if (e.target === helpBackdrop) helpBackdrop.classList.add('hidden'); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') helpBackdrop.classList.add('hidden'); });
+
+    /* ── RAID level buttons ── */
+    var levelBtns = document.querySelectorAll('.raid-level-btn');
+    levelBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            levelBtns.forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            currentLevel = btn.getAttribute('data-level');
+            onLevelChange(true);
+            recalc();
+        });
+    });
+
+    /* ── Custom size toggle ── */
+    $size.addEventListener('change', function () {
+        $customW.classList.toggle('visible', $size.value === 'custom');
+        recalc();
+    });
+
+    /* ── Input listeners ── */
+    [$disks, $spare].forEach(function (el) {
+        el.addEventListener('input', function () {
+            if (RAIDS[currentLevel].groups) onLevelChange(false);
+            recalc();
+        });
+    });
+    [$custom, $group].forEach(function (el) {
+        el.addEventListener('input', recalc);
+    });
+
+    /* ── Level change: update constraints ── */
+    function bestGroupSize(active, groupMin) {
+        var cur = parseInt($group.value) || groupMin;
+        if (cur >= groupMin && active % cur === 0 && active / cur >= 2) return cur;
+        for (var g = groupMin; g <= active / 2; g++) {
+            if (active % g === 0 && active / g >= 2) return g;
+        }
+        return groupMin;
+    }
+
+    function onLevelChange(fromButton) {
+        var cfg = RAIDS[currentLevel];
+        if (fromButton) {
+            $disks.value = cfg.min;
+        }
+        if (cfg.groups) {
+            $groupF.style.display = '';
+            $group.min = cfg.groupMin;
+            var active = (parseInt($disks.value) || 0) - (parseInt($spare.value) || 0);
+            if (active >= cfg.min) {
+                var cur = parseInt($group.value) || cfg.groupMin;
+                if (cur < cfg.groupMin || active % cur !== 0 || active / cur < 2) {
+                    $group.value = bestGroupSize(active, cfg.groupMin);
+                }
+            }
+        } else {
+            $groupF.style.display = 'none';
+        }
+    }
+
+    /* ── Format size ── */
+    function fmtSize(gb) {
+        if (gb >= 1000000000) return (gb / 1000000000).toFixed(2) + ' EB';
+        if (gb >= 1000000) return (gb / 1000000).toFixed(2) + ' PB';
+        if (gb >= 1000) return (gb / 1000).toFixed(2) + ' TB';
+        return gb.toFixed(0) + ' GB';
+    }
+
+    /* ── Disk SVG icon ── */
+    var diskSVG = '<svg viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="1" y="1" width="18" height="22" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="0.5"/>' +
+        '<rect x="4" y="4" width="12" height="2" rx="1" fill="currentColor" opacity="0.4"/>' +
+        '<circle cx="10" cy="14" r="4" fill="currentColor" opacity="0.3"/>' +
+        '<circle cx="10" cy="14" r="1.5" fill="currentColor" opacity="0.6"/>' +
+        '</svg>';
+
+    /* ── Main calculation ── */
+    function recalc() {
+        var totalDisks = parseInt($disks.value) || 0;
+        var diskGB = $size.value === 'custom' ? (parseInt($custom.value) || 0) : parseInt($size.value);
+        var spare = parseInt($spare.value) || 0;
+        var cfg = RAIDS[currentLevel];
+        var active = totalDisks - spare;
+
+        // Warnings
+        $warning.style.display = 'none';
+        if (active < cfg.min) {
+            if (spare > 0 && totalDisks >= cfg.min) {
+                $warning.textContent = t('warn_spare');
+            } else {
+                $warning.textContent = t('warn_min').replace('{min}', cfg.min).replace('{level}', currentLevel);
+            }
+            $warning.style.display = '';
+            showEmpty();
+            return;
+        }
+        if (cfg.even && active % 2 !== 0) {
+            $warning.textContent = t('warn_even').replace('{level}', currentLevel);
+            $warning.style.display = '';
+            showEmpty();
+            return;
+        }
+
+        // Group validation for RAID 50/60
+        var numGroups = 1;
+        if (cfg.groups) {
+            var gpSize = parseInt($group.value) || cfg.groupMin;
+            if (gpSize < cfg.groupMin || active % gpSize !== 0) {
+                $warning.textContent = t('warn_group').replace('{min}', cfg.groupMin).replace('{n}', active);
+                $warning.style.display = '';
+                showEmpty();
+                return;
+            }
+            numGroups = active / gpSize;
+        }
+
+        // Calculate
+        var usableDisks, parityDisks, faultText;
+        var ff = t('fault_fn');
+        switch (currentLevel) {
+            case '0':
+                usableDisks = active;
+                parityDisks = 0;
+                faultText = ff(0);
+                break;
+            case '1':
+                usableDisks = Math.floor(active / 2);
+                parityDisks = active - usableDisks;
+                faultText = ff(usableDisks, 1, lang === 'ru' ? '\u043f\u0430\u0440\u0443' : 'pair');
+                break;
+            case '5':
+                usableDisks = active - 1;
+                parityDisks = 1;
+                faultText = ff(1);
+                break;
+            case '6':
+                usableDisks = active - 2;
+                parityDisks = 2;
+                faultText = ff(2);
+                break;
+            case '10':
+                usableDisks = Math.floor(active / 2);
+                parityDisks = active - usableDisks;
+                faultText = ff(usableDisks, 1, lang === 'ru' ? '\u043f\u0430\u0440\u0443' : 'pair');
+                break;
+            case '50':
+                parityDisks = numGroups * 1;
+                usableDisks = active - parityDisks;
+                faultText = ff(numGroups, 1, lang === 'ru' ? '\u0433\u0440\u0443\u043f\u043f\u0443' : 'group');
+                break;
+            case '60':
+                parityDisks = numGroups * 2;
+                usableDisks = active - parityDisks;
+                faultText = ff(numGroups * 2, 2, lang === 'ru' ? '\u0433\u0440\u0443\u043f\u043f\u0443' : 'group');
+                break;
+        }
+
+        var usableGB = usableDisks * diskGB;
+        var totalGB = totalDisks * diskGB;
+        var activeGB = active * diskGB;
+        var efficiency = activeGB > 0 ? Math.round((usableGB / activeGB) * 100) : 0;
+
+        // Update results
+        document.getElementById('res-usable').textContent = fmtSize(usableGB);
+        document.getElementById('res-total').textContent = fmtSize(totalGB);
+        document.getElementById('res-efficiency').textContent = efficiency + '%';
+        document.getElementById('res-fault').textContent = faultText;
+
+        // Bar
+        var barDataPct = totalDisks > 0 ? (usableDisks / totalDisks * 100) : 0;
+        var barParityPct = totalDisks > 0 ? (parityDisks / totalDisks * 100) : 0;
+        var barSparePct = totalDisks > 0 ? (spare / totalDisks * 100) : 0;
+        document.getElementById('bar-data').style.width = barDataPct + '%';
+        document.getElementById('bar-parity').style.width = barParityPct + '%';
+        document.getElementById('bar-spare').style.width = barSparePct + '%';
+
+        // Legend
+        var leg = '<span><span class="raid-legend-dot" style="background:var(--success)"></span>' + t('bar_data') + ' (' + usableDisks + ')</span>';
+        if (parityDisks > 0) leg += '<span><span class="raid-legend-dot" style="background:#e8954a"></span>' + t('bar_parity') + ' (' + parityDisks + ')</span>';
+        if (spare > 0) leg += '<span><span class="raid-legend-dot" style="background:var(--muted)"></span>' + t('bar_spare') + ' (' + spare + ')</span>';
+        document.getElementById('bar-legend').innerHTML = leg;
+
+        // Disk icons
+        var dh = '';
+        var MAX_ICONS = 64;
+        if (totalDisks <= MAX_ICONS) {
+            for (var i = 0; i < totalDisks; i++) {
+                var cls = 'disk-data';
+                var label = 'D';
+                if (i >= active) {
+                    cls = 'disk-spare'; label = 'S';
+                } else if (cfg.mirror && currentLevel === '1') {
+                    if (i % 2 === 1) { cls = 'disk-parity'; label = 'M'; }
+                } else if (cfg.mirror && currentLevel === '10') {
+                    if (i % 2 === 1) { cls = 'disk-parity'; label = 'M'; }
+                } else if (cfg.parity > 0 && !cfg.groups) {
+                    if (i >= active - cfg.parity) { cls = 'disk-parity'; label = 'P'; }
+                } else if (cfg.groups) {
+                    var gpSize = parseInt($group.value) || cfg.groupMin;
+                    var posInGroup = i % gpSize;
+                    if (posInGroup >= gpSize - cfg.parity) { cls = 'disk-parity'; label = 'P'; }
+                }
+                dh += '<div class="raid-disk-icon ' + cls + '" title="' + (i + 1) + '">' + diskSVG + '</div>';
+            }
+        } else {
+            dh += '<div style="font-size:13px;color:var(--muted);padding:8px 0">';
+            dh += '<span style="color:var(--success)">\u25a0</span> ' + t('bar_data') + ': ' + usableDisks;
+            if (parityDisks > 0) dh += ' &nbsp;|&nbsp; <span style="color:#e8954a">\u25a0</span> ' + t('bar_parity') + ': ' + parityDisks;
+            if (spare > 0) dh += ' &nbsp;|&nbsp; <span style="color:var(--muted)">\u25a0</span> ' + t('bar_spare') + ': ' + spare;
+            dh += ' &nbsp;|&nbsp; ' + totalDisks + ' ' + t('lbl_disks').toLowerCase();
+            dh += '</div>';
+        }
+        document.getElementById('disks-grid').innerHTML = dh;
+
+        // Description
+        var descData = t('desc')[currentLevel];
+        $desc.innerHTML = '<div class="raid-desc-title">' + descData.name + '</div><div class="raid-desc-text">' + descData.text + '</div>';
+    }
+
+    function showEmpty() {
+        document.getElementById('res-usable').textContent = '\u2014';
+        document.getElementById('res-total').textContent = '\u2014';
+        document.getElementById('res-efficiency').textContent = '\u2014';
+        document.getElementById('res-fault').textContent = '\u2014';
+        document.getElementById('bar-data').style.width = '0%';
+        document.getElementById('bar-parity').style.width = '0%';
+        document.getElementById('bar-spare').style.width = '0%';
+        document.getElementById('bar-legend').innerHTML = '';
+        document.getElementById('disks-grid').innerHTML = '';
+    }
+
+    /* ── Language ── */
+    function applyLang(l) {
+        lang = l;
+        localStorage.setItem(LANG_KEY, l);
+        document.documentElement.lang = l;
+        document.getElementById('page-title').textContent = t('title');
+        document.getElementById('subtitle').textContent = t('subtitle');
+        document.getElementById('lbl-disks').textContent = t('lbl_disks');
+        document.getElementById('lbl-size').textContent = t('lbl_size');
+        document.getElementById('lbl-spare').textContent = t('lbl_spare');
+        document.getElementById('lbl-group').textContent = t('lbl_group');
+        document.getElementById('lbl-custom').textContent = t('lbl_custom');
+        document.getElementById('res-usable-lbl').textContent = t('res_usable');
+        document.getElementById('res-total-lbl').textContent = t('res_total');
+        document.getElementById('res-efficiency-lbl').textContent = t('res_efficiency');
+        document.getElementById('res-fault-lbl').textContent = t('res_fault');
+        document.getElementById('bar-title').textContent = t('bar_title');
+        document.getElementById('disks-title').textContent = t('disks_title');
+        document.getElementById('help-title').textContent = t('help_title');
+        document.getElementById('help-body').innerHTML = t('help_body');
+        document.getElementById('lang-en').classList.toggle('active', l === 'en');
+        document.getElementById('lang-ru').classList.toggle('active', l === 'ru');
+        recalc();
+    }
+
+    document.getElementById('lang-en').addEventListener('click', function () { applyLang('en'); });
+    document.getElementById('lang-ru').addEventListener('click', function () { applyLang('ru'); });
+
+    /* ── Reset button ── */
+    document.getElementById('raid-reset').addEventListener('click', function () {
+        currentLevel = '0';
+        document.querySelectorAll('.raid-level-btn').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-level') === '0');
+        });
+        $disks.value = 2;
+        $size.value = '1000';
+        $custom.value = 500;
+        document.getElementById('custom-wrap').classList.remove('visible');
+        $spare.value = 0;
+        $group.value = 3;
+        onLevelChange(true);
+        recalc();
+    });
+
+    /* ── Init ── */
+    onLevelChange(true);
+    applyLang(lang);
+})();
+</script>
+</body>
+</html>
