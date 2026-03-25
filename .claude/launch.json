@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tetris-captcha",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8090", "-d", "/Users/yukh/git/tetris-captcha"],
+      "port": 8090
+    },
+    {
+      "name": "tetris",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "3456", "-d", "/Users/yukh/git/tetris"],
+      "port": 3456
+    }
+  ]
+}
